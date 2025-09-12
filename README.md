@@ -153,6 +153,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Check that the build completed successfully
 - Verify manifest.json is valid
 
+**"Could not establish connection" or "Receiving end does not exist" errors:**
+- These issues have been fixed with retry logic and proper error handling
+- Make sure the page is fully loaded before using the extension
+- Try refreshing the page if the error persists
+
+**Clipboard access issues ("Document is not focused"):**
+- Fixed with fallback clipboard methods that work without document focus
+- The extension now automatically tries multiple clipboard access methods
+- Grant clipboard permissions when prompted by the browser
+
 **Functions not working:**
 - Check that you're on a webpage (not chrome:// pages)
 - Ensure content script permissions are granted
