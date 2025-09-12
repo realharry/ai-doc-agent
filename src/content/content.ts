@@ -3,13 +3,36 @@ import { Message, MessageResponse } from '../shared/messaging'
 // Content script - runs on all web pages
 console.log('AI Document Agent content script loaded on:', window.location.href)
 
-// Signal that content script is ready
-if (typeof chrome !== 'undefined' && chrome.runtime) {
-  console.log('Content script ready, chrome.runtime available')
-  // Set a flag to indicate content script is loaded
-  ;(window as any).AI_DOC_AGENT_LOADED = true
+// Initialize content script readiness
+function initializeContentScript() {
+  if (typeof chrome !== 'undefined' && chrome.runtime) {
+    console.log('Content script ready, chrome.runtime available')
+    // Set a flag to indicate content script is loaded
+    ;(window as any).AI_DOC_AGENT_LOADED = true
+    
+    // Also verify runtime connection is working
+    try {
+      chrome.runtime.id // This will throw if runtime is not available
+      console.log('Chrome runtime verified successfully')
+    } catch (error) {
+      console.error('Chrome runtime verification failed:', error)
+      ;(window as any).AI_DOC_AGENT_LOADED = false
+    }
+  } else {
+    console.error('Content script loaded but chrome.runtime not available')
+    ;(window as any).AI_DOC_AGENT_LOADED = false
+  }
+}
+
+// Initialize immediately
+initializeContentScript()
+
+// Also initialize when DOM is ready (in case script loads early)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeContentScript)
 } else {
-  console.error('Content script loaded but chrome.runtime not available')
+  // DOM is already ready
+  initializeContentScript()
 }
 
 // Document processing functions
@@ -270,11 +293,25 @@ chrome.runtime.onMessage.addListener(
   (message: Message, _sender, sendResponse) => {
     console.log('Content script received message:', message)
     
+    // Verify content script is properly initialized
+    if (!(window as any).AI_DOC_AGENT_LOADED) {
+      console.error('Content script not properly initialized')
+      sendResponse({
+        success: false,
+        error: 'Content script not ready. Please refresh the page and try again.'
+      })
+      return false
+    }
+    
     const handleAsync = async () => {
       try {
         let response: MessageResponse
 
         switch (message.action) {
+          case 'ping':
+            // Health check message
+            response = { success: true, message: 'Content script is ready' }
+            break
           case 'summarize':
             response = await processor.summarizeDocument()
             break
@@ -302,6 +339,7 @@ chrome.runtime.onMessage.addListener(
 
         sendResponse(response)
       } catch (error) {
+        console.error('Error handling message:', error)
         sendResponse({
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error occurred'
