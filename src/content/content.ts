@@ -1,7 +1,16 @@
 import { Message, MessageResponse } from '../shared/messaging'
 
 // Content script - runs on all web pages
-console.log('AI Document Agent content script loaded')
+console.log('AI Document Agent content script loaded on:', window.location.href)
+
+// Signal that content script is ready
+if (typeof chrome !== 'undefined' && chrome.runtime) {
+  console.log('Content script ready, chrome.runtime available')
+  // Set a flag to indicate content script is loaded
+  ;(window as any).AI_DOC_AGENT_LOADED = true
+} else {
+  console.error('Content script loaded but chrome.runtime not available')
+}
 
 // Document processing functions
 class DocumentProcessor {
@@ -16,8 +25,8 @@ class DocumentProcessor {
       // For now, return a simple summary. In production, this would call an AI API
       const summary = `Document Summary:\n\nThis page contains approximately ${text.length} characters of text. The main content appears to be about "${document.title}".`
       
-      // Copy to clipboard
-      await navigator.clipboard.writeText(summary)
+      // Copy to clipboard - handle focus issues
+      await this.copyToClipboard(summary)
       
       return { 
         success: true, 
@@ -39,7 +48,7 @@ class DocumentProcessor {
         return { success: false, error: 'No text content found on this page' }
       }
 
-      await navigator.clipboard.writeText(text)
+      await this.copyToClipboard(text)
       
       return { 
         success: true, 
@@ -74,7 +83,7 @@ class DocumentProcessor {
         `${index + 1}. ${img.alt || 'Image'} (${img.width}x${img.height})\n   ${img.src}`
       ).join('\n\n')
 
-      await navigator.clipboard.writeText(imagesList)
+      await this.copyToClipboard(imagesList)
 
       return { 
         success: true, 
@@ -144,7 +153,7 @@ class DocumentProcessor {
       // Generate simple social media content
       const socialContent = `📄 Just read: "${title}"\n\nKey insights from this article:\n• ${text.substring(0, 100)}...\n\n🔗 ${url}\n\n#AI #DocumentProcessing #Productivity`
 
-      await navigator.clipboard.writeText(socialContent)
+      await this.copyToClipboard(socialContent)
 
       return { 
         success: true, 
@@ -156,6 +165,46 @@ class DocumentProcessor {
         success: false, 
         error: `Failed to generate social content: ${error instanceof Error ? error.message : 'Unknown error'}` 
       }
+    }
+  }
+
+  private async copyToClipboard(text: string): Promise<void> {
+    try {
+      // First try the modern clipboard API
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text)
+        return
+      }
+    } catch (error) {
+      console.log('Modern clipboard API failed, using fallback')
+    }
+
+    // Fallback method using document.execCommand
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.top = '0'
+    textArea.style.left = '0'
+    textArea.style.width = '2em'
+    textArea.style.height = '2em'
+    textArea.style.padding = '0'
+    textArea.style.border = 'none'
+    textArea.style.outline = 'none'
+    textArea.style.boxShadow = 'none'
+    textArea.style.background = 'transparent'
+    textArea.style.opacity = '0'
+
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    
+    try {
+      const successful = document.execCommand('copy')
+      if (!successful) {
+        throw new Error('Copy command failed')
+      }
+    } finally {
+      document.body.removeChild(textArea)
     }
   }
 

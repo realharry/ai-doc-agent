@@ -15,12 +15,38 @@ export interface MessageResponse {
 export async function sendMessageToContentScript(message: Message): Promise<MessageResponse> {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (!tab.id) {
+    if (!tab?.id) {
       throw new Error('No active tab found')
     }
 
-    const response = await chrome.tabs.sendMessage(tab.id, message)
-    return response || { success: false, error: 'No response from content script' }
+    // Check if tab is ready
+    if (tab.status !== 'complete') {
+      throw new Error('Page is still loading. Please wait for the page to fully load.')
+    }
+
+    // Try multiple times with exponential backoff
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, message)
+        return response || { success: false, error: 'No response from content script' }
+      } catch (error) {
+        console.log(`Message attempt ${attempt}/3 failed:`, error)
+        
+        if (attempt < 3) {
+          // Wait before retrying (100ms, then 300ms)
+          await new Promise(resolve => setTimeout(resolve, 100 * attempt * attempt))
+        } else {
+          // Last attempt failed, will fall through to error handling
+          console.error('All message attempts failed:', error)
+        }
+      }
+    }
+
+    // If all retries failed, return a user-friendly error
+    return {
+      success: false,
+      error: 'Unable to connect to the page. Please refresh the page and try again.'
+    }
   } catch (error) {
     console.error('Failed to send message to content script:', error)
     return {

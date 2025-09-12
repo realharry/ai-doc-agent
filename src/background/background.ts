@@ -1,6 +1,47 @@
 // Background script - service worker
 console.log('AI Document Agent background script loaded')
 
+// Utility function to send messages with retry logic
+async function sendMessageWithRetry(tabId: number, message: any, maxRetries = 3): Promise<any> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // First, check if the tab still exists and is loaded
+      const tab = await chrome.tabs.get(tabId)
+      if (!tab || tab.status !== 'complete') {
+        throw new Error('Tab not ready')
+      }
+
+      // Try to inject content script if it's not already there
+      if (attempt === 1) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            func: () => {
+              // Check if content script is already loaded
+              return typeof (window as any).AI_DOC_AGENT_LOADED !== 'undefined'
+            }
+          })
+        } catch (error) {
+          // Ignore injection errors, content script might already be loaded
+          console.log('Content script check failed, proceeding with message')
+        }
+      }
+
+      const response = await chrome.tabs.sendMessage(tabId, message)
+      return response
+    } catch (error) {
+      console.log(`Message attempt ${attempt}/${maxRetries} failed:`, error)
+      
+      if (attempt === maxRetries) {
+        throw new Error(`Failed to communicate with content script after ${maxRetries} attempts. The page may not be fully loaded or the content script may not be available.`)
+      }
+      
+      // Wait a bit before retrying
+      await new Promise(resolve => setTimeout(resolve, 200 * attempt))
+    }
+  }
+}
+
 // Context menu items
 const contextMenuItems = [
   {
@@ -71,29 +112,27 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 // Handle context menu clicks
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return
 
   const action = info.menuItemId as string
   if (contextMenuItems.some(item => item.id === action)) {
-    // Send message to content script
-    chrome.tabs.sendMessage(tab.id, { action })
-      .then(response => {
-        if (response?.success) {
-          showNotification('Success', response.message || 'Action completed')
-        } else {
-          showNotification('Error', response?.error || 'Action failed')
-        }
-      })
-      .catch(error => {
-        console.error('Context menu action failed:', error)
-        showNotification('Error', 'Failed to execute action')
-      })
+    try {
+      const response = await sendMessageWithRetry(tab.id, { action })
+      if (response?.success) {
+        showNotification('Success', response.message || 'Action completed')
+      } else {
+        showNotification('Error', response?.error || 'Action failed')
+      }
+    } catch (error) {
+      console.error('Context menu action failed:', error)
+      showNotification('Error', 'Failed to execute action. Make sure the page is loaded.')
+    }
   }
 })
 
 // Handle keyboard shortcuts
-chrome.commands.onCommand.addListener((command, tab) => {
+chrome.commands.onCommand.addListener(async (command, tab) => {
   if (!tab?.id) return
 
   let action: string
@@ -112,19 +151,17 @@ chrome.commands.onCommand.addListener((command, tab) => {
       return
   }
 
-  // Send message to content script
-  chrome.tabs.sendMessage(tab.id, { action })
-    .then(response => {
-      if (response?.success) {
-        showNotification('Success', response.message || 'Action completed')
-      } else {
-        showNotification('Error', response?.error || 'Action failed')
-      }
-    })
-    .catch(error => {
-      console.error('Keyboard shortcut action failed:', error)
-      showNotification('Error', 'Failed to execute action')
-    })
+  try {
+    const response = await sendMessageWithRetry(tab.id, { action })
+    if (response?.success) {
+      showNotification('Success', response.message || 'Action completed')
+    } else {
+      showNotification('Error', response?.error || 'Action failed')
+    }
+  } catch (error) {
+    console.error('Keyboard shortcut action failed:', error)
+    showNotification('Error', 'Failed to execute action. Make sure the page is loaded.')
+  }
 })
 
 // Handle messages from popup/content scripts

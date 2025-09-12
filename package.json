@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && npm run copy-manifest",
+    "build": "tsc && vite build && npm run copy-manifest && npm run fix-html-paths",
     "copy-manifest": "cp manifest.json dist/",
+    "fix-html-paths": "cp dist/src/popup/index.html dist/popup.html && cp dist/src/options/index.html dist/options.html && sed -i 's|/assets/|assets/|g' dist/popup.html dist/options.html",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
