@@ -1,0 +1,32 @@
+{
+  "name": "ai-doc-agent",
+  "version": "1.0.0",
+  "description": "Chrome extension for AI-powered document processing",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && npm run copy-manifest && npm run fix-html-paths",
+    "copy-manifest": "cp manifest.json dist/",
+    "fix-html-paths": "cp dist/src/popup/index.html dist/popup.html && cp dist/src/options/index.html dist/options.html && sed -i 's|/assets/|assets/|g' dist/popup.html dist/options.html",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.246",
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitejs/plugin-react": "^4.0.3",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.3",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5"
+  }
+}
